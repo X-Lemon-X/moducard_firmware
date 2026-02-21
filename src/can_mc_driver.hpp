@@ -10,19 +10,19 @@
 #include <cstring>
 #include <bitset>
 
-#include "basic_module_types.hpp"
-#include "base_module_dummy.hpp"
+#include "mcan_basic_module_types.hpp"
+#include "mcan_base_module_dummy.hpp"
 
 namespace mcan {
 
 
-using namespace basic_module;
-using namespace base_module_dummy;
+using namespace mcan_basic_module;
+using namespace mcan_base_module_dummy;
 
-template <typename McCanSlaveInterface, typename Hardware> class McSlavePluginDriver {
+template <typename McCanSlaveInterface, typename Hardware> class McSlaveDriver {
 
 public:
-  Result<std::shared_ptr<McSlavePluginDriver<McCanSlaveInterface, Hardware>>> static Make(std::shared_ptr<CanBase> can_interface,
+  Result<std::shared_ptr<McSlaveDriver<McCanSlaveInterface, Hardware>>> static Make(std::shared_ptr<CanBase> can_interface,
                                                                                           uint32_t uid_21_bit) {
     if(!can_interface) {
       return Status::Invalid("Can interface is null");
@@ -32,8 +32,8 @@ public:
       return Status::Invalid("UID must be a 21-bit value");
     }
 
-    return Result<std::shared_ptr<McSlavePluginDriver>>::OK(
-    std::shared_ptr<McSlavePluginDriver>(new McSlavePluginDriver(std::move(can_interface), uid_21_bit)));
+    return Result<std::shared_ptr<McSlaveDriver>>::OK(
+    std::shared_ptr<McSlaveDriver>(new McSlaveDriver(std::move(can_interface), uid_21_bit)));
   }
 
   Status start_driver() {
@@ -55,7 +55,7 @@ public:
   }
 
 private:
-  McSlavePluginDriver(std::shared_ptr<CanBase> can_interface, uint32_t uid_21_bit)
+  McSlaveDriver(std::shared_ptr<CanBase> can_interface, uint32_t uid_21_bit)
   : _can_interface(std::move(can_interface)), _uid_21_bit(uid_21_bit) {
   }
 
@@ -72,12 +72,12 @@ private:
 
     switch(new_mode) {
     case DeviceMode::NORMAL:
-      _mode_exit_mode_func  = std::bind(&McSlavePluginDriver::mode_exit_normal, this);
-      _mode_enter_mode_func = std::bind(&McSlavePluginDriver::mode_enter_normal, this);
+      _mode_exit_mode_func  = std::bind(&McSlaveDriver::mode_exit_normal, this);
+      _mode_enter_mode_func = std::bind(&McSlaveDriver::mode_enter_normal, this);
       break;
     case DeviceMode::CONFIGURATION:
-      _mode_exit_mode_func  = std::bind(&McSlavePluginDriver::exit_configuration_mode, this);
-      _mode_enter_mode_func = std::bind(&McSlavePluginDriver::enter_configuration_mode, this);
+      _mode_exit_mode_func  = std::bind(&McSlaveDriver::exit_configuration_mode, this);
+      _mode_enter_mode_func = std::bind(&McSlaveDriver::enter_configuration_mode, this);
       break;
     default:
       // Handle unknown mode error
@@ -104,23 +104,23 @@ private:
     // Actions to perform when entering NORMAL mode
     ARI_RETURN_ON_ERROR(
     _can_interface->add_callback(mcan_connect_msg_id_with_node_id(configs::GetHardwareType::k_base_address, _node_id, true),
-                                 std::bind(&McSlavePluginDriver::callback_get_hardware_type, this,
+                                 std::bind(&McSlaveDriver::callback_get_hardware_type, this,
                                            std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                                  nullptr));
     ARI_RETURN_ON_ERROR(
     _can_interface->add_callback(mcan_connect_msg_id_with_node_id(configs::EnterConfigurationMode::k_base_address, 1, true),
-                                 std::bind(&McSlavePluginDriver::callback_nm_enter_configuration_mode, this,
+                                 std::bind(&McSlaveDriver::callback_nm_enter_configuration_mode, this,
                                            std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                                  nullptr));
     ARI_RETURN_ON_ERROR(
     _can_interface->add_callback(mcan_connect_msg_id_with_node_id(configs::PingModule::k_base_address, _node_id, true),
-                                 std::bind(&McSlavePluginDriver::callback_ping_module, this,
+                                 std::bind(&McSlaveDriver::callback_ping_module, this,
                                            std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                                  nullptr));
 
     ARI_RETURN_ON_ERROR(
     _can_interface->add_callback(mcan_connect_msg_id_with_node_id(configs::FlashIndicatorLed::k_base_address, _node_id),
-                                 std::bind(&McSlavePluginDriver::callback_flash_indicator_led, this,
+                                 std::bind(&McSlaveDriver::callback_flash_indicator_led, this,
                                            std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                                  nullptr));
 
@@ -246,18 +246,18 @@ private:
     _new_node_id = 0;
     ARI_RETURN_ON_ERROR(
     _can_interface->add_callback(mcan_connect_msg_id_with_node_id(configs::DiscoverDevices::k_base_address, 1, true),
-                                 std::bind(&McSlavePluginDriver::callback_discover_devices, this,
+                                 std::bind(&McSlaveDriver::callback_discover_devices, this,
                                            std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                                  nullptr));
     ARI_RETURN_ON_ERROR(
     _can_interface->add_callback(mcan_connect_msg_id_with_node_id(_uid_21_bit, 1),
-                                 std::bind(&McSlavePluginDriver::callback_set_device_node_id, this,
+                                 std::bind(&McSlaveDriver::callback_set_device_node_id, this,
                                            std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                                  nullptr));
 
     ARI_RETURN_ON_ERROR(
     _can_interface->add_callback(mcan_connect_msg_id_with_node_id(configs::EnterConfigurationMode::k_base_address, 1, true),
-                                 std::bind(&McSlavePluginDriver::callback_enter_configuration_mode, this,
+                                 std::bind(&McSlaveDriver::callback_enter_configuration_mode, this,
                                            std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
                                  nullptr));
 

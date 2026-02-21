@@ -1,16 +1,15 @@
-cmake_minimum_required(VERSION 3.8)
+set(UPPER_PROJECT_NAME ${CMAKE_PROJECT_NAME})
 
 
-project(moducard_firmware )
-
-
-add_library(${PROJECT_NAME} STATIC 
-  src/can_mc_common.cpp
+target_include_directories(${UPPER_PROJECT_NAME} PUBLIC
+$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>  
+$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/mc_drivers_common/include>  
+$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/mc_drivers_common/src>  
+$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<INSTALL_INTERFACE:include/${UPPER_PROJECT_NAME}> 
 )
 
 
-target_include_directories( ${PROJECT_NAME} PUBLIC
-  mc_drivers_common/include
-  src
+target_sources(${UPPER_PROJECT_NAME} PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/can_mc_driver.cpp
 )
-
