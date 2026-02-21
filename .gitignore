@@ -1,0 +1,19 @@
+.venv
+
+build
+
+!.vscode/settings.json  
+!.vscode/launch.json
+!.vscode/tasks.json
+# !.vscode/c_cpp_properties.json
+
+
+.vscode/**
+
+**__pycache__/
+*.pyc
+*.pyo
+
+generated/
+
+build

@@ -4,3 +4,6 @@
 [submodule "mc_drivers_common"]
 	path = mc_drivers_common
 	url = git@github.com:X-Lemon-X/mc_drivers_common.git
+[submodule "moducard_generators"]
+	path = moducard_generators
+	url = git@github.com:X-Lemon-X/moducard_generators.git
