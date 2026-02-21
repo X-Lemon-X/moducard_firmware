@@ -1,6 +1,3 @@
-[submodule "mc_firmware_common"]
-	path = mc_firmware_common
-	url = ../mc_firmware_common.git
 [submodule "mc_drivers_common"]
 	path = mc_drivers_common
 	url = ../mc_drivers_common.git
