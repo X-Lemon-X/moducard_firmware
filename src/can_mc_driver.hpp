@@ -4,26 +4,39 @@
 #include "mc_firmware/mc_common.hpp"
 #include "mc_firmware/status.hpp"
 #include <bitset>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <functional>
-#include <iostream>
+
 #include <memory>
 
 #include "mcan_base_module_dummy.hpp"
 #include "mcan_basic_module_types.hpp"
+
+// #include <iomanip>
+// #include <iostream>
+
+#define LOG_MSG(x)
+// #define LOG_MSG(msg)                                                                     \
+//   do {                                                                                   \
+//     auto now = std::chrono::system_clock::now();                                         \
+//     auto duration = now.time_since_epoch();                                              \
+//     auto seconds = std::chrono::duration_cast<std::chrono::seconds>(duration);           \
+//     auto fraction =                                                                      \
+//       std::chrono::duration_cast<std::chrono::nanoseconds>(duration - seconds);          \
+//     std::cout << "[" << seconds.count() << "." << std::setfill('0') << std::setw(9)      \
+//               << fraction.count() << "] [CAN MC Driver] " << msg << std::endl;           \
+//   } while (0);
 
 namespace mcan {
 
 using namespace mcan_basic_module;
 using namespace mcan_base_module_dummy;
 
-#define LOG_MSG(msg) std::cout << "[CAN MC Driver] " << msg << std::endl;
-
 template<typename McCanSlaveInterface, typename Hardware>
 class McSlaveDriver
 {
-
  public:
   Result<std::shared_ptr<McSlaveDriver<McCanSlaveInterface, Hardware>>> static Make(
     std::shared_ptr<CanBase> can_interface,
@@ -57,6 +70,8 @@ class McSlaveDriver
 
   void switch_to_state(DeviceMode next_state)
   {
+    LOG_MSG("Switching to state: " << static_cast<int>(next_state));
+
     if (_state == next_state) {
       return;
     }
@@ -136,7 +151,9 @@ class McSlaveDriver
 
   Status mode_enter_normal()
   {
-    // Actions to perform when entering NORMAL mode
+    LOG_MSG("BEGIN Entering NORMAL mode")
+    //  Actions to perform when entering NORMAL mode
+    (void)_can_interface->close_can();
     ARI_RETURN_ON_ERROR(_can_interface->add_callback(
       mcan_connect_msg_id_with_node_id(
         configs::GetHardwareType::k_base_address, _node_id, true),
@@ -217,12 +234,16 @@ class McSlaveDriver
       },
       _interface.get_read_variables());
 
+    _can_interface->open_can();
+    LOG_MSG("EXIT Entered NORMAL mode")
     return Status::OK();
   }
 
   Status mode_exit_normal()
   {
-    // Actions to perform when exiting NORMAL mode
+    LOG_MSG("BEGIN Exiting NORMAL mode")
+    _can_interface->close_can();
+    //  Actions to perform when exiting NORMAL mode
     ARI_RETURN_ON_ERROR(_can_interface->remove_callback(mcan_connect_msg_id_with_node_id(
       configs::GetHardwareType::k_base_address, _node_id, true)));
     // ARI_RETURN_ON_ERROR(_can_interface->remove_callback(
@@ -252,12 +273,15 @@ class McSlaveDriver
       },
       _interface.get_read_variables());
 
+    _can_interface->open_can();
+    LOG_MSG("EXIT Exiting NORMAL mode")
     return Status::OK();
   }
 
   void callback_get_hardware_type(CanBase& cd, const CanFrame& frame, void* args)
   {
-    // Handle get hardware type callback
+    LOG_MSG("Received GetHardwareType request")
+    //  Handle get hardware type callback
     configs::GetHardwareType response;
     response.value.hw_revision = _hardware.k_hw_revision;
     response.value.fw_revision = _hardware.k_fw_revision;
@@ -278,12 +302,14 @@ class McSlaveDriver
                                             const CanFrame& frame,
                                             void* args)
   {
+    LOG_MSG("Received request to enter CONFIGURATION mode in Normal Mode")
     switch_to_state(DeviceMode::CONFIGURATION);
   }
 
   void callback_ping_module(CanBase& cd, const CanFrame& frame, void* args)
   {
-    // Handle ping module callback
+    LOG_MSG("Received PingModule request")
+    //  Handle ping module callback
     if (!frame.is_remote_request) {
       return; // Invalid frame size
     }
@@ -293,7 +319,8 @@ class McSlaveDriver
 
   void callback_flash_indicator_led(CanBase& cd, const CanFrame& frame, void* args)
   {
-    // Handle flash indicator LED callback
+    LOG_MSG("Received FlashIndicatorLed request")
+    //  Handle flash indicator LED callback
     static CanMultiPackageFrame<configs::FlashIndicatorLed> msg_buffer = {};
     if (!mcan_unpack_msg(frame, msg_buffer).ok()) {
       return; // error unpacking
@@ -303,9 +330,10 @@ class McSlaveDriver
 
   Status enter_configuration_mode()
   {
-    // Actions to perform when entering CONFIGURATION mode
+    LOG_MSG("BEGIN Entering CONFIGURATION mode")
+    _can_interface->close_can();
+    //  Actions to perform when entering CONFIGURATION mode
     _node_id = 0; // Unconfigured node ID
-    _new_node_id = 0;
     ARI_RETURN_ON_ERROR(_can_interface->add_callback(
       mcan_connect_msg_id_with_node_id(configs::DiscoverDevices::k_base_address, 1, true),
       std::bind(&McSlaveDriver::callback_discover_devices,
@@ -333,19 +361,24 @@ class McSlaveDriver
                 std::placeholders::_3),
       nullptr));
 
+    _can_interface->open_can();
+    LOG_MSG("EXIT Entering CONFIGURATION mode")
     return Status::OK();
   }
 
   Status exit_configuration_mode()
   {
-    // Actions to perform when exiting CONFIGURATION mode
+    LOG_MSG("BEGIN Exiting CONFIGURATION mode")
+    _can_interface->close_can();
+    //  Actions to perform when exiting CONFIGURATION mode
     ARI_RETURN_ON_ERROR(_can_interface->remove_callback(mcan_connect_msg_id_with_node_id(
       configs::DiscoverDevices::k_base_address, 1, true)));
     ARI_RETURN_ON_ERROR(
       _can_interface->remove_callback(mcan_connect_msg_id_with_node_id(_uid_21_bit, 1)));
     ARI_RETURN_ON_ERROR(_can_interface->remove_callback(mcan_connect_msg_id_with_node_id(
       configs::EnterConfigurationMode::k_base_address, 1, true)));
-    _new_node_id = 0;
+    _can_interface->open_can();
+    LOG_MSG("EXIT Exiting CONFIGURATION mode")
     return Status::OK();
   }
 
@@ -353,8 +386,9 @@ class McSlaveDriver
 
   void callback_discover_devices(CanBase& cd, const CanFrame& frame, void* args)
   {
-    // Handle discover devices callback
-    // Respond with unique ID
+    LOG_MSG("Received DiscoverDevices request")
+    //  Handle discover devices callback
+    //  Respond with unique ID
     configs::DiscoverDevices response;
     response.value = _hardware.k_unique_id;
     (void)mcan_pack_send_msg(
@@ -372,11 +406,13 @@ class McSlaveDriver
       return; // error unpacking
     }
     _node_id = msg_buffer.value;
+    LOG_MSG("Received SetDeviceNodeId request: " << std::to_string(_node_id))
     switch_to_state(DeviceMode::NORMAL);
   }
 
   void callback_enter_configuration_mode(CanBase& cd, const CanFrame& frame, void* args)
   {
+    LOG_MSG("Received request to enter CONFIGURATION mode in Config Mode")
     switch_to_state(DeviceMode::CONFIGURATION);
   }
 
@@ -394,7 +430,6 @@ class McSlaveDriver
   McCanSlaveInterface _interface;
 
   uint16_t _node_id = 0;
-  uint8_t _new_node_id = 0;
   uint8_t _ping_counter = 0;
   bool _led_indicator_state = false;
 };
